@@ -1,0 +1,273 @@
+* {
+  box-sizing: border-box;
+}
+:root {
+  color-scheme: dark;
+  --bg: #0b0d10;
+  --panel: #151a21;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #4aa3ff;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  font-family: system-ui, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden; /* keep the app within the viewport */
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #222a33;
+  background: #0e1319;
+}
+header h1 {
+  font-size: 18px;
+  margin: 0;
+}
+.controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.toolbar {
+  flex: 1;
+  justify-content: space-between;
+}
+.toolbar .group {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  padding-right: 12px;
+  border-right: 1px solid #1b2330;
+}
+.toolbar .group:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+/* Always show precise cursor for canvases for marker interactions */
+#vectorscope {
+  cursor: crosshair;
+}
+#rgbParade {
+  cursor: crosshair;
+}
+.controls label {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+}
+.controls .file input {
+  display: none;
+}
+.btn,
+.controls .file span {
+  background: var(--accent);
+  color: #001;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 14px;
+  min-width: 120px;
+  white-space: nowrap;
+  border-radius: 6px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  border: 0;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:hover {
+  filter: brightness(1.05);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+main {
+  display: grid;
+  grid-template-columns: 1fr 8px 1fr; /* left | splitter | right */
+  gap: 12px;
+  padding: 12px;
+  min-height: 0; /* allow children to shrink */
+  overflow: hidden; /* avoid page overflow */
+}
+.splitter {
+  width: 8px;
+  cursor: col-resize;
+  background: linear-gradient(to bottom, #0f1420, #0a0e15);
+  border: 1px solid #1a2230;
+  border-radius: 6px;
+}
+.video-panel {
+  background: var(--panel);
+  border: 1px solid #222a33;
+  border-radius: 10px;
+  padding: 8px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  border-radius: 6px;
+  position: relative;
+  z-index: 1; /* below panel button */
+}
+.scopes {
+  display: grid;
+  gap: 12px;
+  position: relative;
+  grid-template-rows: minmax(0, 0.45fr) 8px minmax(0, 0.55fr); /* VS | splitter | WF */
+  height: 100%;
+  min-height: 0;
+}
+.scope {
+  background: #000; /* panel background black */
+  border: 1px solid #222a33;
+  border-radius: 10px;
+  padding: 8px;
+  display: grid;
+  grid-template-rows: 1fr auto; /* canvas area + caption */
+  align-items: stretch;
+  justify-items: stretch;
+  position: relative; /* anchor for panel button */
+  min-height: 0;
+  overflow: hidden;
+}
+.splitter-h {
+  width: auto;
+  height: 8px;
+  cursor: row-resize;
+  background: linear-gradient(to right, #0f1420, #0a0e15);
+  border: 1px solid #1a2230;
+  border-radius: 6px;
+}
+/* Make canvases responsive while keeping crisp pixels */
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+.scope .caption {
+  justify-self: center;
+}
+/* Ensure waveform canvas shows as black even before any pixels are drawn */
+#rgbParade {
+  background: #000;
+}
+/* Ensure vectorscope has a solid black base and subtle inner shadow */
+#vectorscope {
+  background: #000;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.6);
+}
+.caption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+footer {
+  padding: 8px 12px;
+  color: var(--muted);
+  border-top: 1px solid #222a33;
+}
+
+/* Panel maximize button */
+.panel-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(74, 163, 255, 0.15);
+  color: var(--text);
+  border: 1px solid rgba(74, 163, 255, 0.35);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 5; /* keep above video/canvas */
+}
+.panel-btn:hover {
+  background: rgba(74, 163, 255, 0.25);
+}
+
+/* Maximized layout */
+.max-video main {
+  grid-template-columns: 1fr 0 0 !important;
+}
+.max-scopes main {
+  grid-template-columns: 0 0 1fr !important;
+}
+
+/* Per-scope maximize inside scopes column */
+body.max-vs .scopes .scope-wf {
+  display: none;
+}
+body.max-wf .scopes .scope-vs {
+  display: none;
+}
+body.max-vs .splitter-h,
+body.max-wf .splitter-h {
+  display: none;
+}
+
+/* When a single scope is maximized, make it take the full height */
+body.max-vs .scopes {
+  grid-template-rows: 1fr !important;
+}
+body.max-wf .scopes {
+  grid-template-rows: 1fr !important;
+}
+body.max-vs .scopes .scope-vs {
+  grid-row: 1 / -1;
+}
+body.max-wf .scopes .scope-wf {
+  grid-row: 1 / -1;
+}
+
+/* Hide maximize buttons on minimized panels */
+body.max-video .scopes .panel-btn {
+  display: none;
+}
+body.max-scopes .video-panel .panel-btn {
+  display: none;
+}
+body.max-vs .scope-wf .panel-btn {
+  display: none;
+}
+body.max-wf .scope-vs .panel-btn {
+  display: none;
+}
+
+/* Hide the video column when a single scope panel is maximized */
+body.max-vs main,
+body.max-wf main {
+  grid-template-columns: 0 0 1fr !important;
+}
+
+@media (max-width: 1000px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+}

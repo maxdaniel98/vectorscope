@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HTML5 Vectorscope & RGB Parade</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Vectorscope & RGB Parade</h1>
+    <div class="controls toolbar">
+      <div class="group">
+        <label class="file">
+          <input id="fileInput" type="file" accept="video/*" />
+          <span class="btn">Open Video</span>
+        </label>
+  <button id="startCam" type="button" class="btn">Use Camera</button>
+      </div>
+      <div class="group">
+        <label>Downscale
+          <input id="downscale" type="range" min="1" max="8" step="1" value="4" />
+        </label>
+        <label>Stride
+          <input id="stride" type="range" min="1" max="8" value="1" />
+        </label>
+        <label>Intensity
+          <input id="wfIntensity" type="range" min="0.2" max="3" step="0.1" value="1.4" />
+        </label>
+      </div>
+      <div class="group">
+        <label>Display
+          <select id="wfDisplay">
+            <option value="overlay">overlay</option>
+            <option value="stack">stack</option>
+            <option value="parade" selected>parade</option>
+          </select>
+        </label>
+        <label>Graticule
+          <select id="wfGraticule">
+            <option value="none">none</option>
+            <option value="digital" selected>digital</option>
+            <option value="ire">IRE</option>
+            <option value="mv">mV</option>
+          </select>
+        </label>
+        <label>Envelope
+          <select id="wfEnvelope">
+            <option value="none" selected>none</option>
+            <option value="instant">instant</option>
+          </select>
+        </label>
+        <label>
+          <input id="wfMirror" type="checkbox" /> Mirror
+        </label>
+      </div>
+      <div class="group">
+        <label>
+          <input id="pauseScopes" type="checkbox" /> Pause scopes
+        </label>
+      </div>
+      <div class="group">
+        <button id="wfAddH" type="button" class="btn">Add WF H…</button>
+        <button id="clearMarkers" type="button" class="btn">Clear markers</button>
+      </div>
+    </div>
+  </header>
+  <main>
+    <section class="video-panel">
+      <button class="panel-btn" id="maxVideo" title="Maximize video">⤢</button>
+      <video id="video" controls crossorigin="anonymous"></video>
+    </section>
+
+    <div class="splitter" id="splitter" aria-hidden="true"></div>
+
+    <section class="scopes">
+      <div class="scope scope-vs">
+        <button class="panel-btn" id="maxVS" title="Maximize vectorscope">⤢</button>
+        <canvas id="vectorscope" width="512" height="512"></canvas>
+        <div class="caption">Vectorscope</div>
+      </div>
+  <div class="splitter splitter-h" id="scopesSplitter" aria-hidden="true"></div>
+      <div class="scope scope-wf">
+        <button class="panel-btn" id="maxWF" title="Maximize waveform">⤢</button>
+        <canvas id="rgbParade" width="768" height="256"></canvas>
+        <div class="caption">Waveform (RGB)</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <small>
+      Uses Canvas2D. Vectorscope: UV from BT.601 transform, brightness by chroma magnitude. Parade: per-channel vertical histograms.
+    </small>
+  </footer>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
