@@ -14,6 +14,8 @@ const rgbParadeCanvas = document.getElementById('rgbParade');
 const wfDisplayEl = document.getElementById('wfDisplay'); // overlay|stack|parade
 const wfGraticuleEl = document.getElementById('wfGraticule'); // none|digital|ire|mv
 const wfIntensityEl = document.getElementById('wfIntensity');
+const gamutEl = document.getElementById('colorGamut'); // bt601|bt709|bt2020
+const transferEl = document.getElementById('transfer'); // sdr|pq|hlg
 const wfMirrorEl = document.getElementById('wfMirror');
 const wfEnvelopeEl = document.getElementById('wfEnvelope'); // none|instant
 const downscaleEl = document.getElementById('downscale');
@@ -98,13 +100,22 @@ function clamp(v, min, max) { return v < min ? min : v > max ? max : v; }
 
 // BT.601 full-range conversion from RGB (0..255) to YUV (Y 0..1 for visualization, U/V -0.5..0.5-ish)
 // Source constants adapted from standard 601 matrix
-function rgbToYuv601(r, g, b) {
+function rgbToYuv(r, g, b, gamut) {
   const R = r / 255, G = g / 255, B = b / 255;
-  // Luma (Rec.601): Y' = 0.299R + 0.587G + 0.114B
-  const Y = 0.299 * R + 0.587 * G + 0.114 * B;
-  // Chrominance (U/V) for visualization (not scaled to 0-255)
-  const U = -0.14713 * R - 0.28886 * G + 0.436   * B; // ~[-0.436..0.436]
-  const V =  0.615   * R - 0.51499 * G - 0.10001 * B; // ~[-0.615..0.615]
+  // Choose matrix based on gamut (BT.601/709/2020 non-constant luminance, non-linear R'G'B')
+  // Coefficients for Y' from ITU standards (approx)
+  const coeffs = gamut === 'bt2020'
+    ? { kr: 0.2627, kg: 0.6780, kb: 0.0593 }
+    : gamut === 'bt709'
+    ? { kr: 0.2126, kg: 0.7152, kb: 0.0722 }
+    : { kr: 0.299,  kg: 0.587,  kb: 0.114 };
+  const { kr, kg, kb } = coeffs;
+  const Y = kr * R + kg * G + kb * B;
+  // Y'CbCr-like mapping (Cb,Cr in -0.5..0.5 when normalized)
+  const Cb = (B - Y) / (2 * (1 - kb));
+  const Cr = (R - Y) / (2 * (1 - kr));
+  const U = Cb;
+  const V = Cr;
   return { Y, U, V };
 }
 
@@ -141,9 +152,10 @@ function drawVectorscope(imageData) {
       const i = rowOff + x * 4;
       const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
       if (a === 0) continue;
-      const { Y, U, V } = rgbToYuv601(r, g, b);
-      const maxC = 0.62; // conservative radius for 100% color bars
-      const px = (cx + (U / maxC) * radius) | 0;
+  const { Y, U, V } = rgbToYuv(r, g, b, gamutEl?.value || 'bt709');
+  // Conservative chroma limit so 100% bars fit target boxes in SDR
+  const maxC = (gamutEl?.value || 'bt709') === 'bt2020' ? 0.5 : 0.62;
+  const px = (cx + (U / maxC) * radius) | 0;
       const py = (cy - (V / maxC) * radius) | 0;
       if (px < 0 || px >= w || py < 0 || py >= h) continue;
       const idx = (py * w + px) * 4;
@@ -262,6 +274,7 @@ function drawWaveform(imageData) {
   const w = rgbParadeCanvas.width;
   const h = rgbParadeCanvas.height;
   const display = wfDisplayEl.value; // overlay|stack|parade
+  const transfer = transferEl?.value || 'sdr';
   const mirror = wfMirrorEl.checked;
   // Combined intensity (0.2..3). Map to a plotting gain.
   const intensity = Math.max(0.2, Math.min(3, parseFloat(intensityEl?.value || wfIntensityEl.value || '1.4')));
@@ -329,7 +342,7 @@ function drawWaveform(imageData) {
       // For each channel, compute y and plot
       // R
       {
-        const yVal = Math.floor((r / 255) * (yScale - 1));
+        const yVal = toWaveY(r, transfer, yScale);
         const yOffset = display === 'stack' ? 0 : 0;
         const yCanvas = (display === 'stack' ? 0 : 0) + (mirror ? yVal : (yScale - 1 - yVal));
         const baseX = display === 'parade' ? 0 * sectionW : 0;
@@ -346,7 +359,7 @@ function drawWaveform(imageData) {
       }
       // G
       {
-        const yVal = Math.floor((g / 255) * (yScale - 1));
+        const yVal = toWaveY(g, transfer, yScale);
         const yCanvas = (display === 'stack' ? Math.floor(h / 3) : 0) + (mirror ? yVal : (yScale - 1 - yVal));
         const baseX = display === 'parade' ? 1 * sectionW : 0;
         const xCanvas = baseX + xLocal;
@@ -362,7 +375,7 @@ function drawWaveform(imageData) {
       }
       // B
       {
-        const yVal = Math.floor((b / 255) * (yScale - 1));
+        const yVal = toWaveY(b, transfer, yScale);
         const yCanvas = (display === 'stack' ? Math.floor(2 * h / 3) : 0) + (mirror ? yVal : (yScale - 1 - yVal));
         const baseX = display === 'parade' ? 2 * sectionW : 0;
         const xCanvas = baseX + xLocal;
@@ -444,6 +457,33 @@ function drawWaveform(imageData) {
   pctx.globalCompositeOperation = 'source-over';
 }
 
+// Map 8-bit component to waveform vertical position respecting transfer function
+function toWaveY(v8, transfer, yScale) {
+  const n = v8 / 255;
+  let lin;
+  if (transfer === 'pq') {
+    // ST 2084 EOTF (approx inverse to map code to relative display luminance 0..1)
+    // Use a simplified OETF-like curve for visualization input
+    const m1 = 2610 / 16384;
+    const m2 = 2523 / 32;
+    const c1 = 3424 / 4096;
+    const c2 = 2413 / 128;
+    const c3 = 2392 / 128;
+    // Inverse EOTF (OETF) from normalized linear to code; we need the reverse, so approximate
+    // For scope, a simple 2.4 gamma can approximate perceptual spread
+    lin = Math.pow(n, 2.4);
+  } else if (transfer === 'hlg') {
+    // BT.2100 HLG OETF (camera curve), approximate inverse for display mapping
+    const a = 0.17883277, b = 1 - 4 * a, c = 0.5 - a * Math.log(4 * a);
+    lin = n <= 0.5 ? (n * n) / 3 : (Math.exp((n - c) / a) + b) / 12;
+  } else {
+    // SDR: keep linear code mapping for standard digital waveform
+    lin = n;
+  }
+  const yVal = Math.floor(lin * (yScale - 1));
+  return yVal;
+}
+
 function drawWaveformMarkers(ctx, w, h) {
   if (!wfHMarkers.length) return;
   ctx.save();
@@ -464,7 +504,13 @@ function drawWaveformMarkers(ctx, w, h) {
     // Map back to 0..255 considering mirror false for label readability; use raw y
     const v8 = Math.round((h - 1 - y) / (h - 1) * 255);
     let label = `${v8}`;
-    if (wfGraticuleEl.value === 'ire') {
+    const transfer = transferEl?.value || 'sdr';
+    if (transfer !== 'sdr') {
+      // Display approximate nits for HDR modes assuming normalized 0..1 maps to 1000 nits for PQ and ~1000 for HLG
+      const n = v8 / 255;
+      const nits = Math.round((transfer === 'pq' ? Math.pow(n, 2.4) : n) * 1000);
+      label = `${nits} nits`;
+    } else if (wfGraticuleEl.value === 'ire') {
       const ire = ((v8 - 16) / (235 - 16)) * 100;
       label = `${Math.max(0, Math.min(100, ire)).toFixed(1)} IRE`;
     } else if (wfGraticuleEl.value === 'mv') {
@@ -493,7 +539,7 @@ function drawWaveformGraticule(ctx, w, h, display, mode, mirror) {
       { v: 235, label: '235' }
     );
   } else if (mode === 'ire') {
-    // Rough IRE mapping: 0/25/50/75/100 -> 8-bit video range
+    // IRE is generally for SDR; treat as reference points
     markers.push(
       { v: 16, label: '0 IRE' },
       { v: 71, label: '25' },
@@ -502,7 +548,7 @@ function drawWaveformGraticule(ctx, w, h, display, mode, mirror) {
       { v: 235, label: '100 IRE' }
     );
   } else if (mode === 'mv') {
-    // Rough mV mapping: 0,175,350,525,700 -> 8-bit video range
+    // mV reference for SDR composite-like scale
     markers.push(
       { v: 16, label: '0 mV' },
       { v: 71, label: '175' },
